@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useMemo, useState, useEffect } from 'react'
 import { FiDatabase, FiChevronRight, FiLoader } from 'react-icons/fi'
+
 import { useRecoilState } from 'recoil'
 
 import {
@@ -8,7 +9,9 @@ import {
   IDatabase,
   currentDatabaseState
 } from '../../../atoms/connections'
+import { useToast } from '../../../context/toast'
 import { loadConnectionDatabases } from '../../../services/connection/LoadConnectionDatabases'
+import { initializeConnection } from '../../../services/RedisConnection'
 import {
   Container,
   DatabaseList,
@@ -32,6 +35,8 @@ const Connection: React.FC<IConnectionProps> = ({ connection }) => {
   const [isConnecting, setIsConnecting] = useState(false)
   const [isConnectionFailed, setIsConnectionFailed] = useState(false)
 
+  const { addToast } = useToast()
+
   useEffect(() => {
     if (currentConnection) {
       setIsConnectionFailed(false)
@@ -46,6 +51,7 @@ const Connection: React.FC<IConnectionProps> = ({ connection }) => {
     if (!isConnected) {
       setIsConnecting(true)
       setCurrentConnection(undefined)
+      setCurrentDatabase(undefined)
 
       try {
         const databases = await loadConnectionDatabases(connection)
@@ -61,9 +67,27 @@ const Connection: React.FC<IConnectionProps> = ({ connection }) => {
     }
   }, [])
 
-  const handleSelectDatabase = useCallback((database: IDatabase) => {
-    setCurrentDatabase(database)
-  }, [])
+  const handleSelectDatabase = useCallback(
+    async (database: IDatabase) => {
+      if (!currentConnection) {
+        return
+      }
+
+      try {
+        await initializeConnection(currentConnection, database)
+
+        setCurrentDatabase(database)
+      } catch {
+        addToast({
+          type: 'error',
+          title: 'Failed to connect to database',
+          description:
+            'A connection to this Redis database could not be established.'
+        })
+      }
+    },
+    [currentConnection]
+  )
 
   return (
     <Container
